@@ -1,0 +1,33 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/plant_mvp?stringtype=unspecified
+    username: postgres
+    password: postgres
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        spatial:
+          enabled: true
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 10MB
+
+amap:
+  key: ${AMAP_KEY:your-amap-key}
+  security-code: ${AMAP_SECURITY_CODE:your-amap-security-code}
+
+aliyun:
+  oss:
+    endpoint: ${OSS_ENDPOINT:oss-cn-beijing.aliyuncs.com}
+    bucket: ${OSS_BUCKET:campus-plant-images}
+    access-key-id: ${OSS_ACCESS_KEY_ID:your-oss-access-key-id}
+    access-key-secret: ${OSS_ACCESS_KEY_SECRET:your-oss-access-key-secret}
+    cdn-domain: ${OSS_CDN_DOMAIN:campus-plant-images.oss-cn-beijing.aliyuncs.com}
+
+server:
+  port: 8080

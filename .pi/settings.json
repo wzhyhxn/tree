@@ -1,0 +1,12 @@
+{
+  "skills": {
+    "autoLoad": true
+  },
+  "extensions": {
+    "checkpoint": true,
+    "safe-git": true
+  },
+  "goals": {
+    "enabled": true
+  }
+}
