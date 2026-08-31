@@ -134,13 +134,13 @@ free -h
 
 ```bash
 apt update && apt upgrade -y
-apt install -y openjdk-17-jdk nginx curl wget unzip postgresql-client
+apt install -y openjdk-21-jdk nginx curl wget unzip postgresql-client
 
 java -version
-# openjdk version "17.x"
+# openjdk version "21.x"
 ```
 
-> Ubuntu 22.04 源为 JDK 17，与 Spring Boot 3.x 完全兼容。`postgresql-client` 仅用于调试连接 RDS。
+> Spring Boot 3.4.x 需要 JDK 21。`postgresql-client` 仅用于调试连接 RDS。
 
 ### 4.4 创建目录
 
@@ -174,10 +174,14 @@ scp target/campus-plant-backend-0.1.0.jar root@<ECS_IP>:/opt/campus-plant/app/
 
 ```bash
 cat > /opt/campus-plant/app/.env << 'EOF'
+# 激活生产 profile（使用 OSS 存储）
+SPRING_PROFILES_ACTIVE=prod
+
 # RDS PostgreSQL（替换为实际地址和密码）
-SPRING_DATASOURCE_URL=jdbc:postgresql://<RDS内网地址>:5432/plant_mvp?stringtype=unspecified
-SPRING_DATASOURCE_USERNAME=<数据库账号>
-SPRING_DATASOURCE_PASSWORD=<数据库密码>
+DB_HOST=<RDS内网地址>
+DB_NAME=plant_mvp
+DB_USER=<数据库账号>
+DB_PASSWORD=<数据库密码>
 
 # 高德地图（替换为实际 Key）
 AMAP_KEY=<你的高德Key>
@@ -188,13 +192,12 @@ OSS_BUCKET=campus-plant-images
 OSS_ACCESS_KEY_ID=<你的AK>
 OSS_ACCESS_KEY_SECRET=<你的SK>
 OSS_CDN_DOMAIN=campus-plant-images.oss-cn-beijing.aliyuncs.com
-
-SERVER_PORT=8080
 EOF
 ```
 
 > - `<RDS内网地址>`：RDS 控制台 → 基本信息 → 内网地址，类似 `rm-xxx.pg.rds.aliyuncs.com`
 > - `<数据库账号>`：创建 RDS 时设置的高权限账号
+> - `SPRING_PROFILES_ACTIVE=prod` 激活 OSS 存储；不设则默认 `dev`（本地存储）
 > - JVM `-Xmx256m`：1G 内存下给 Java 堆 256M，加上 Metaspace 和栈，约 350M
 
 ### 5.4 创建 Systemd 服务
@@ -401,7 +404,7 @@ free -h
 ### 11.2 浏览器
 
 1. 打开 `http://<ECS公网IP>`
-2. 地图首页显示 5 个植物标记点（种子数据）
+2. 地图首页显示 5 个植物标记点（银杏/香樟/桂花/樱花/悬铃木）
 3. 点击标记点 → 详情页，有逆地理地址
 4. `/login` → `root / root` 登录 → 新增植物 + 上传图片
 5. 图片上传后，OSS bucket 中出现文件
@@ -467,7 +470,7 @@ scp -r dist/* root@<IP>:/var/www/campus-plant/
 | --- | --------------------------------------------------------- | --- |
 | 1   | RDS PostgreSQL 15 实例已创建，50G 存储                            |     |
 | 2   | PostGIS 3.3 扩展已开启                                         |     |
-| 3   | `init.sql` 已导入，`SELECT count(*) FROM plant_species;` 返回 5 |     |
+| 3   | `init.sql` 已导入，`SELECT count(*) FROM plant_species;` 返回 5（银杏/香樟/桂花/樱花/悬铃木） |     |
 | 4   | RDS 白名单已添加 ECS 内网 IP                                      |     |
 | 5   | ECS 安全组放行 80、443、22                                       |     |
 | 6   | swap 已创建，`free -h` 确认                                     |     |

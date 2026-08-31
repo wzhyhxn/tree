@@ -1,13 +1,15 @@
 <template>
-  <div id="map-container" class="w-full h-full relative">
-    <!-- 图层切换 -->
-    <div class="absolute top-14 right-2 z-10 flex flex-col gap-1">
-      <button v-for="l in layers" :key="l.value" @click="switchLayer(l.value)"
-        class="text-xs px-2.5 py-1.5 rounded-lg font-medium transition-all border"
-        :class="current === l.value
-          ? 'bg-green-700 text-white border-green-700 shadow'
-          : 'bg-white text-gray-600 border-gray-200 hover:border-green-400 shadow-sm'"
-      >{{ l.label }}</button>
+  <div id="map-container">
+    <!-- Layer toggle -->
+    <div class="layer-toggle">
+      <button
+        v-for="l in layers" :key="l.value"
+        @click="switchLayer(l.value)"
+        class="layer-btn"
+        :class="{ active: current === l.value }"
+      >
+        {{ l.label }}
+      </button>
     </div>
   </div>
 </template>
@@ -24,25 +26,31 @@ let mapInstance: any = null;
 let markers: any[] = [];
 const current = ref<'satellite' | 'normal'>('satellite');
 const layers = [
-  { label: '🛰️ 卫星', value: 'satellite' as const },
-  { label: '🗺️ 地图', value: 'normal' as const },
+  { label: '卫星', value: 'satellite' as const },
+  { label: '地图', value: 'normal' as const },
 ];
 
 onMounted(async () => {
   AMap = await AMapLoader.load({
-    key: import.meta.env.VITE_AMAP_KEY, version: '2.0',
+    key: import.meta.env.VITE_AMAP_KEY,
+    version: '2.0',
     plugins: ['AMap.Scale'],
   });
 
   const map = new AMap.Map('map-container', {
-    zoom: 17, center: [116.313226, 39.970598],
+    zoom: 17,
+    center: [116.313226, 39.970598],
     layers: [new AMap.TileLayer.Satellite()],
-    resizeEnable: true, zooms: [16, 19], viewMode: '2D',
+    resizeEnable: true,
+    zooms: [16, 19],
+    viewMode: '2D',
   });
   map.addControl(new AMap.Scale({ position: 'LB' }));
-  map.setFeatures(['bg']);  // 仅底色，无文字无标注
+  map.setFeatures(['bg']);
 
-  const campusSW = [116.304, 39.961], campusNE = [116.324, 39.980];
+  // Clamp to campus bounds
+  const campusSW = [116.304, 39.961];
+  const campusNE = [116.324, 39.980];
   map.on('moveend', () => {
     const c = map.getCenter();
     const [clng, clat] = [c.getLng(), c.getLat()];
@@ -60,23 +68,22 @@ onMounted(async () => {
 
 const loadMarkers = async (map: any, season?: string) => {
   try {
-    const params: any = {};
-    if (season) params.season = season;
-    const { data } = await api.client.get('/plants', { params });
+    const { data } = await api.getPlants(undefined, season);
     const plants = data.data || [];
 
     plants.forEach((p: any) => {
       const content = document.createElement('div');
-      content.style.cssText = 'display:flex;flex-direction:column;align-items:center;cursor:pointer;';
+      content.style.cssText =
+        'display:flex;flex-direction:column;align-items:center;cursor:pointer;';
       content.innerHTML = `
-        <div style="width:14px;height:14px;border-radius:50%;background:#2d6a4f;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></div>
-        <span style="margin-top:2px;font-size:11px;font-weight:600;color:#2d6a4f;white-space:nowrap;text-shadow:0 1px 2px rgba(255,255,255,0.8);">${p.name}</span>
+        <div style="width:12px;height:12px;border-radius:50%;background:#1F5C3A;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.25);"></div>
+        <span style="margin-top:2px;font-size:10px;font-weight:700;color:#1A1A1A;white-space:nowrap;text-shadow:0 1px 2px rgba(255,255,255,0.9);letter-spacing:0.02em;">${p.name}</span>
       `;
 
       const marker = new AMap.Marker({
         position: [p.longitude, p.latitude],
         content,
-        offset: new AMap.Pixel(-7, -25),
+        offset: new AMap.Pixel(-6, -22),
         zIndex: 100,
         map,
       });
@@ -88,7 +95,6 @@ const loadMarkers = async (map: any, season?: string) => {
 
       marker._plantId = p.id;
       marker._plantData = p;
-
       markers.push(marker);
     });
   } catch (err) {
@@ -109,14 +115,14 @@ const switchLayer = (type: 'satellite' | 'normal') => {
 
 const refreshBySeason = async (season: string) => {
   if (!mapInstance) return;
-  markers.forEach(m => m.setMap(null));
+  markers.forEach((m) => m.setMap(null));
   markers = [];
   await loadMarkers(mapInstance, season || undefined);
 };
 
 const zoomTo = (id: string) => {
   if (!mapInstance || !id) return;
-  const m = markers.find(mk => mk._plantId === id);
+  const m = markers.find((mk) => mk._plantId === id);
   if (m) mapInstance.setZoomAndCenter(18, m.getPosition());
 };
 
@@ -124,5 +130,32 @@ defineExpose({ refreshBySeason, zoomTo });
 </script>
 
 <style scoped>
-#map-container { width: 100%; min-height: 100vh; }
+#map-container {
+  width: 100%; height: 100%;
+  position: absolute; inset: 0;
+}
+
+/* Layer toggle */
+.layer-toggle {
+  position: absolute; top: calc(var(--nav-height) + 0.5rem);
+  right: var(--space-3); z-index: 10;
+  display: flex; gap: 2px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius);
+  padding: 2px;
+  box-shadow: var(--shadow-sm);
+}
+.layer-btn {
+  padding: 0.35rem 0.65rem;
+  border: none; border-radius: var(--radius-sm);
+  background: transparent;
+  font-family: var(--font-body); font-size: var(--text-xs);
+  font-weight: 600; color: var(--color-text-secondary);
+  cursor: pointer; transition: all 0.12s;
+}
+.layer-btn:hover { color: var(--color-accent); }
+.layer-btn.active {
+  background: var(--color-accent); color: #fff;
+}
 </style>

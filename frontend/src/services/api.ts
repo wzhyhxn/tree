@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const client = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080',
+  baseURL: '/api',
   timeout: 15000,
 });
 
@@ -25,12 +25,16 @@ client.interceptors.response.use(
 );
 
 export const api = {
-  client,
   login: (username: string, password: string) =>
     client.post('/auth/login', { username, password }),
 
-  getPlants: (search?: string) =>
-    client.get('/plants', { params: search ? { search } : {} }),
+  getPlants: (search?: string, season?: string) =>
+    client.get('/plants', {
+      params: {
+        ...(search ? { search } : {}),
+        ...(season ? { season } : {}),
+      },
+    }),
 
   getPlantDetail: (id: string) =>
     client.get(`/plants/${id}`),

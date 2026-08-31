@@ -3,6 +3,7 @@ package com.campusplant.service;
 import com.campusplant.dto.PlantVO;
 import com.campusplant.entity.*;
 import com.campusplant.repository.*;
+import com.campusplant.storage.StorageService;
 import org.locationtech.jts.geom.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,18 +20,18 @@ public class PlantService {
     private final PlantLocationRepository locationRepo;
     private final PlantImageRepository imageRepo;
     private final PlantSeasonRepository seasonRepo;
-    private final OssService ossService;
+    private final StorageService storage;
     private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
     private final Random random = new Random();
 
     public PlantService(PlantSpeciesRepository speciesRepo, PlantLocationRepository locationRepo,
                         PlantImageRepository imageRepo, PlantSeasonRepository seasonRepo,
-                        OssService ossService) {
+                        StorageService storage) {
         this.speciesRepo = speciesRepo;
         this.locationRepo = locationRepo;
         this.imageRepo = imageRepo;
         this.seasonRepo = seasonRepo;
-        this.ossService = ossService;
+        this.storage = storage;
     }
 
     /** 植物列表，支持搜索和季节筛选 */
@@ -99,13 +100,13 @@ public class PlantService {
         loc.setGeom(point);
 
         if (file != null && !file.isEmpty()) {
-            String filename = "plants/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
-            ossService.upload(filename, file.getInputStream());
-            loc.setImage(ossService.getCdnUrl(filename));
+            String filename = "plants/" + UUID.randomUUID() + "_" + sanitizeFilename(file.getOriginalFilename());
+            String url = storage.upload(filename, file.getInputStream());
+            loc.setImage(url);
             // 同时入库到图片库
             PlantImage img = new PlantImage();
             img.setCategory(category);
-            img.setImageUrl(ossService.getCdnUrl(filename));
+            img.setImageUrl(url);
             imageRepo.save(img);
         }
 
@@ -127,14 +128,17 @@ public class PlantService {
                            MultipartFile file) throws IOException {
         PlantSpecies sp = speciesRepo.findById(id)
                 .orElseThrow(() -> new RuntimeException("树木不存在"));
+
+        // 如果类型变化，更新编号
+        if (!category.equals(sp.getCategory())) {
+            List<PlantSpecies> sameCategory = speciesRepo.findAll().stream()
+                    .filter(s -> s.getCategory().equals(category)).toList();
+            String newCode = category + "-" + String.format("%02d", sameCategory.size() + 1);
+            sp.setName(newCode);
+        }
         sp.setCategory(category);
         sp.setDescription(description);
         speciesRepo.save(sp);
-
-        // 同步更新同类型其他树的简介
-        speciesRepo.findAll().stream()
-                .filter(s -> s.getCategory().equals(category) && !s.getId().equals(id))
-                .forEach(s -> { s.setDescription(description); speciesRepo.save(s); });
 
         PlantLocation loc = locationRepo.findBySpeciesId(id).orElse(null);
         if (loc == null) {
@@ -148,9 +152,8 @@ public class PlantService {
         loc.setGeom(point);
 
         if (file != null && !file.isEmpty()) {
-            String filename = "plants/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
-            ossService.upload(filename, file.getInputStream());
-            String url = ossService.getCdnUrl(filename);
+            String filename = "plants/" + UUID.randomUUID() + "_" + sanitizeFilename(file.getOriginalFilename());
+            String url = storage.upload(filename, file.getInputStream());
             loc.setImage(url);
             PlantImage img = new PlantImage();
             img.setCategory(category);
@@ -166,9 +169,8 @@ public class PlantService {
     public String uploadImage(String speciesId, MultipartFile file) throws IOException {
         PlantSpecies sp = speciesRepo.findById(speciesId)
                 .orElseThrow(() -> new RuntimeException("树木不存在"));
-        String filename = "plants/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
-        ossService.upload(filename, file.getInputStream());
-        String url = ossService.getCdnUrl(filename);
+        String filename = "plants/" + UUID.randomUUID() + "_" + sanitizeFilename(file.getOriginalFilename());
+        String url = storage.upload(filename, file.getInputStream());
 
         PlantImage img = new PlantImage();
         img.setCategory(sp.getCategory());
@@ -178,6 +180,14 @@ public class PlantService {
     }
 
     // ---- 内部方法 ----
+
+    /** 清理文件名中的空格和特殊字符 */
+    private String sanitizeFilename(String original) {
+        if (original == null) return "file";
+        // 保留中文、字母、数字、点、下划线、连字符，其余替换为下划线
+        return original.replaceAll("[\\s]+", "_")       // 空格→下划线
+                       .replaceAll("[^a-zA-Z0-9.\\-\\u4e00-\\u9fff_]", "");
+    }
 
     private List<PlantVO> toVOList(List<PlantLocation> locations) {
         if (locations.isEmpty()) return List.of();

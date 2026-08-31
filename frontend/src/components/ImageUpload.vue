@@ -1,14 +1,17 @@
 <template>
-  <div>
-    <input
-      type="file"
-      accept="image/*"
-      :disabled="loading"
-      @change="handleUpload"
-      class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
-    />
-    <p v-if="loading" class="text-sm text-gray-400 mt-1">上传中...</p>
-    <img v-if="imageUrl" :src="imageUrl" class="mt-2 w-64 rounded shadow" />
+  <div class="image-upload">
+    <label class="upload-zone">
+      <input
+        type="file"
+        accept="image/*"
+        :disabled="loading"
+        hidden
+        @change="handleUpload"
+      />
+      <span class="upload-zone-icon">{{ loading ? '⏳' : '📷' }}</span>
+      <p class="upload-zone-text">{{ loading ? '上传中…' : '点击上传图片' }}</p>
+    </label>
+    <img v-if="imageUrl" :src="imageUrl" class="image-preview" alt="预览" />
   </div>
 </template>
 
@@ -17,7 +20,7 @@ import { ref } from 'vue';
 import { api } from '@/services/api';
 import imageCompression from 'browser-image-compression';
 
-const props = defineProps<{ plantId: number }>();
+const props = defineProps<{ plantId: string }>();
 const emit = defineEmits<{ uploaded: [url: string] }>();
 
 const loading = ref(false);
@@ -44,3 +47,13 @@ const handleUpload = async (event: Event) => {
   }
 };
 </script>
+
+<style scoped>
+.image-upload {
+  display: flex; flex-direction: column; gap: var(--space-3);
+}
+.image-preview {
+  width: 16rem; border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+</style>
